@@ -52,7 +52,7 @@
       "provider": "github",
       "owner": "catalystbusinessconsult",
       "repo": "anydrop",
-      "draft": false
+      "releaseType": "release"
     }
   }
 }
