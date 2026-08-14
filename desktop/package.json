@@ -1,23 +1,28 @@
 {
   "name": "@anydrop/desktop",
+  "description": "Anydrop — peer-to-peer LAN file transfer, desktop app",
+  "author": "Catalyst Business Consult",
   "private": true,
   "version": "0.1.0",
-  "main": "electron/main.cjs",
+  "main": "electron/main.bundle.cjs",
   "scripts": {
-    "start": "electron .",
-    "prepare-assets": "npm run build -w coordinator && npm run build -w web",
-    "dist": "npm run prepare-assets && electron-builder --win"
-  },
-  "dependencies": {
-    "electron-updater": "^6.3.9"
+    "start": "npm run bundle:main && electron .",
+    "bundle:main": "esbuild electron/main.cjs --bundle --platform=node --format=cjs --external:electron --outfile=electron/main.bundle.cjs",
+    "prepare-assets": "npm run build --prefix ../coordinator && npm run build --prefix ../web",
+    "dist": "npm run prepare-assets && npm run bundle:main && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win"
   },
   "devDependencies": {
+    "cross-env": "^10.1.0",
     "electron": "^33.0.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "electron-updater": "^6.3.9",
+    "esbuild": "^0.28.2"
   },
   "build": {
     "appId": "com.catalystbusinessconsult.anydrop",
     "productName": "Anydrop",
+    "electronVersion": "33.4.11",
+    "npmRebuild": false,
     "directories": {
       "output": "release"
     },
@@ -26,13 +31,28 @@
       "!electron/**/*.map"
     ],
     "extraResources": [
-      { "from": "../coordinator/dist", "to": "coordinator" },
-      { "from": "../web/dist", "to": "web" },
-      { "from": "../web/certs", "to": "certs" }
+      {
+        "from": "../coordinator/dist",
+        "to": "coordinator"
+      },
+      {
+        "from": "../coordinator/package.json",
+        "to": "coordinator/package.json"
+      },
+      {
+        "from": "../web/dist",
+        "to": "web"
+      },
+      {
+        "from": "../web/certs",
+        "to": "certs"
+      }
     ],
     "win": {
       "icon": "assets/icon.ico",
-      "target": "nsis"
+      "target": "nsis",
+      "signAndEditExecutable": false,
+      "verifyUpdateCodeSignature": false
     },
     "publish": {
       "provider": "github",
