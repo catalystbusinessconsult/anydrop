@@ -124,6 +124,31 @@ body {
   animation: pulse-dot 1s ease-in-out infinite;
 }
 
+.app__header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.update-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.update-button button {
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  border-radius: 999px;
+}
+
+.update-button__hint {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  margin: 0;
+  white-space: nowrap;
+}
+
 /* ---------- loading screen ---------- */
 
 .loading-screen {

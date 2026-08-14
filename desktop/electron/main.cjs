@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, ipcMain } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -34,6 +34,56 @@ async function startCoordinator(tls) {
   coordinatorHandle = await runElection({ tls, logger: console });
   console.log(`[anydrop-desktop] coordinator role=${coordinatorHandle.role()} epoch=${coordinatorHandle.currentEpoch()}`);
 }
+
+function sendUpdateStatus(status) {
+  win?.webContents.send("update-status", status);
+}
+
+// Wires electron-updater's events to both the log (diagnosable from a
+// packaged app with no visible DevTools) and the renderer (the "Check for
+// updates" button's status text) — registered once, driving both the
+// silent startup check and any later on-demand check from the button.
+function setupAutoUpdater() {
+  // The repo is private, so the public releases.atom feed 404s for an
+  // unauthenticated request — electron-updater's GitHub provider reads
+  // GH_TOKEN when build.publish.private is set (package.json), same
+  // convention electron-builder's own CI publish step already uses.
+  // ANYDROP_UPDATE_TOKEN is inlined at build time (desktop/scripts/
+  // bundle-main.cjs via esbuild's define) from a fine-grained PAT scoped
+  // read-only to this one repo — it's never in source or git history, but
+  // is extractable from the shipped .exe by design/acceptance.
+  if (process.env.ANYDROP_UPDATE_TOKEN) process.env.GH_TOKEN = process.env.ANYDROP_UPDATE_TOKEN;
+  autoUpdater.logger = console;
+  autoUpdater.on("checking-for-update", () => sendUpdateStatus({ state: "checking" }));
+  autoUpdater.on("update-available", (info) => sendUpdateStatus({ state: "downloading", version: info.version, percent: 0 }));
+  autoUpdater.on("update-not-available", () => sendUpdateStatus({ state: "up-to-date" }));
+  autoUpdater.on("download-progress", (p) => sendUpdateStatus({ state: "downloading", percent: Math.round(p.percent) }));
+  autoUpdater.on("update-downloaded", (info) => {
+    console.log(`[anydrop-desktop] update ${info.version} downloaded — ready to restart`);
+    sendUpdateStatus({ state: "downloaded", version: info.version });
+  });
+  autoUpdater.on("error", (err) => {
+    console.error("[anydrop-desktop] update check failed:", err);
+    sendUpdateStatus({ state: "error", message: err.message });
+  });
+}
+
+ipcMain.handle("check-for-updates", async () => {
+  if (!app.isPackaged) {
+    sendUpdateStatus({ state: "unavailable" });
+    return;
+  }
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch (err) {
+    // Already reported to the renderer via the "error" listener above —
+    // caught here only so the IPC call itself doesn't reject/log twice.
+  }
+});
+
+ipcMain.handle("restart-to-update", () => {
+  autoUpdater.quitAndInstall();
+});
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -90,6 +140,7 @@ function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      preload: path.join(__dirname, "preload.cjs"),
     },
   });
 
@@ -148,25 +199,15 @@ app.whenReady().then(async () => {
 
   // Checks GitHub Releases (see build.publish in package.json) for a newer
   // version, downloads it in the background if found, and installs it the
-  // next time the app quits/relaunches — no button, no prompt. Only makes
+  // next time the app quits/relaunches — same setupAutoUpdater() a click
+  // on "Check for updates" in the UI later triggers on demand. Only makes
   // sense for a real installed build: electron-updater no-ops in dev (no
   // install directory to update), and there's nothing published to check
   // yet until a release actually gets built — see desktop/README.md for
   // what publishing one requires.
   if (app.isPackaged) {
-    // The repo is private, so the public releases.atom feed 404s for an
-    // unauthenticated request — electron-updater's GitHub provider reads
-    // GH_TOKEN when build.publish.private is set (package.json), same
-    // convention electron-builder's own CI publish step already uses.
-    // ANYDROP_UPDATE_TOKEN is inlined at build time (desktop/scripts/
-    // bundle-main.cjs via esbuild's define) from a fine-grained PAT scoped
-    // read-only to this one repo — it's never in source or git history,
-    // but is extractable from the shipped .exe by design/acceptance.
-    if (process.env.ANYDROP_UPDATE_TOKEN) process.env.GH_TOKEN = process.env.ANYDROP_UPDATE_TOKEN;
-    autoUpdater.logger = console;
-    autoUpdater.on("error", (err) => console.error("[anydrop-desktop] update check failed:", err));
-    autoUpdater.on("update-downloaded", (info) => console.log(`[anydrop-desktop] update ${info.version} downloaded — installs on next restart`));
-    autoUpdater.checkForUpdatesAndNotify().catch((err) => console.error("[anydrop-desktop] update check failed:", err));
+    setupAutoUpdater();
+    autoUpdater.checkForUpdates().catch((err) => console.error("[anydrop-desktop] update check failed:", err));
   }
 
   app.on("activate", () => {

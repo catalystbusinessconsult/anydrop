@@ -7,6 +7,7 @@ import { listenForNextIncomingTransfer, sendFileToPeer } from "./lib/peerSession
 import { PeerList } from "./components/PeerList";
 import { LoadingScreen } from "./components/LoadingScreen";
 import { QrPairingPanel } from "./components/QrPairingPanel";
+import { UpdateButton } from "./components/UpdateButton";
 import { PinModal, type PinModalState } from "./components/PinModal";
 import { IncomingConfirmModal } from "./components/IncomingConfirmModal";
 import { TransferList, type TransferRecord } from "./components/TransferList";
@@ -181,12 +182,15 @@ export default function App() {
           </span>
           <h1>Anydrop</h1>
         </div>
-        <p className={`connection-status connection-status--${connectionState}`}>
-          <span className="connection-status__dot" aria-hidden />
-          {connectionState === "open" && "Connected"}
-          {connectionState === "reconnecting" && "Reconnecting…"}
-          {connectionState === "offline" && "Offline"}
-        </p>
+        <div className="app__header-right">
+          <UpdateButton />
+          <p className={`connection-status connection-status--${connectionState}`}>
+            <span className="connection-status__dot" aria-hidden />
+            {connectionState === "open" && "Connected"}
+            {connectionState === "reconnecting" && "Reconnecting…"}
+            {connectionState === "offline" && "Offline"}
+          </p>
+        </div>
       </header>
 
       <section className="panel identity-panel">
