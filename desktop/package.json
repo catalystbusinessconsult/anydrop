@@ -7,7 +7,7 @@
   "main": "electron/main.bundle.cjs",
   "scripts": {
     "start": "npm run bundle:main && npm run bundle:coordinator && electron .",
-    "bundle:main": "esbuild electron/main.cjs --bundle --platform=node --format=cjs --external:electron --outfile=electron/main.bundle.cjs",
+    "bundle:main": "node scripts/bundle-main.cjs",
     "bundle:coordinator": "esbuild ../coordinator/dist/index.js --bundle --platform=node --format=cjs --outfile=electron/coordinator.bundle.cjs",
     "prepare-assets": "npm run build --prefix ../coordinator && npm run build --prefix ../web",
     "dist": "npm run prepare-assets && npm run bundle:main && npm run bundle:coordinator && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win"
@@ -51,7 +51,8 @@
     "publish": {
       "provider": "github",
       "owner": "catalystbusinessconsult",
-      "repo": "anydrop"
+      "repo": "anydrop",
+      "draft": false
     }
   }
 }

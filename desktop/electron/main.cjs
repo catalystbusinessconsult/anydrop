@@ -154,6 +154,15 @@ app.whenReady().then(async () => {
   // yet until a release actually gets built — see desktop/README.md for
   // what publishing one requires.
   if (app.isPackaged) {
+    // The repo is private, so the public releases.atom feed 404s for an
+    // unauthenticated request — electron-updater's GitHub provider reads
+    // GH_TOKEN when build.publish.private is set (package.json), same
+    // convention electron-builder's own CI publish step already uses.
+    // ANYDROP_UPDATE_TOKEN is inlined at build time (desktop/scripts/
+    // bundle-main.cjs via esbuild's define) from a fine-grained PAT scoped
+    // read-only to this one repo — it's never in source or git history,
+    // but is extractable from the shipped .exe by design/acceptance.
+    if (process.env.ANYDROP_UPDATE_TOKEN) process.env.GH_TOKEN = process.env.ANYDROP_UPDATE_TOKEN;
     autoUpdater.logger = console;
     autoUpdater.on("error", (err) => console.error("[anydrop-desktop] update check failed:", err));
     autoUpdater.on("update-downloaded", (info) => console.log(`[anydrop-desktop] update ${info.version} downloaded — installs on next restart`));
