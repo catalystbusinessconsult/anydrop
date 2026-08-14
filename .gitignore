@@ -15,14 +15,19 @@ desktop/electron/coordinator.bundle.cjs
 # not part of the shipped repo
 .tools/
 
-# certs — except the shared office-LAN cert/key, which IS committed
-# intentionally so every laptop and the CI build trust the same identity
-# without per-machine setup (see desktop/README.md "Local HTTPS")
+# certs — except the shared office-LAN cert/key and the root CA that
+# signed them, all three committed intentionally: every laptop and the CI
+# build need the same identity, and the app verifies coordinators against
+# that CA itself rather than each machine's OS trust store (see
+# installCertificateVerifier in desktop/electron/main.cjs). The CA file
+# being caught by this blanket rule is why CI-built releases shipped
+# without it for several versions.
 *.pem
 *.crt
 *.key
 !web/certs/cert.pem
 !web/certs/key.pem
+!web/public/anydrop-root-ca.pem
 
 # test output
 coverage/

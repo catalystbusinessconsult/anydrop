@@ -1,8 +1,9 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, session } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const path = require("node:path");
 const fs = require("node:fs");
 const https = require("node:https");
+const { X509Certificate } = require("node:crypto");
 
 // In dev, web/certs live in the sibling workspace packages' own dist/
 // output. In a packaged build, electron-builder copies those into
@@ -20,6 +21,9 @@ const webDistDir = app.isPackaged ? path.join(resourcesRoot, "web") : path.join(
 const webIndexHtml = path.join(webDistDir, "index.html");
 const certsDir = app.isPackaged ? path.join(resourcesRoot, "certs") : path.join(resourcesRoot, "web", "certs");
 const iconPath = path.join(__dirname, "..", "assets", "icon.png");
+// Shipped as part of web/dist (vite copies web/public/* verbatim), so the
+// same path resolution works packaged and in dev.
+const rootCaPath = path.join(webDistDir, "anydrop-root-ca.pem");
 
 const PHONE_SERVER_PORT = 5173;
 
@@ -47,6 +51,69 @@ async function startCoordinator(tls) {
     },
   });
   console.log(`[anydrop-desktop] coordinator role=${coordinatorHandle.role()} epoch=${coordinatorHandle.currentEpoch()}`);
+}
+
+/**
+ * Trust a coordinator's TLS certificate based on *who signed it*, rather
+ * than on the OS certificate store — which is what made this whole thing
+ * so fragile before.
+ *
+ * The old model needed two things to line up on every single machine:
+ * an elevated `certutil -addstore` run to trust our CA (which realistically
+ * only ever happened on the machine that generated it), and the winning
+ * coordinator's current IP to already be listed in the cert's SAN (which
+ * DHCP and every newly-added laptop invalidate). Miss either and the app
+ * shows "Offline" forever, with the failure looking identical to a network
+ * problem.
+ *
+ * Since both ends of this connection are our own app on a private LAN, the
+ * app can verify the chain itself: check the presented cert was genuinely
+ * signed by our CA (a real signature check against the CA's public key,
+ * not a name or fingerprint comparison), is currently in its validity
+ * window, and that we're talking to a private/loopback address. Hostname
+ * matching is deliberately not part of that — it's precisely the SAN
+ * coupling we're removing, and it isn't carrying weight here anyway: the
+ * signature proves the peer holds a key our CA signed, and the coordinator
+ * itself only relays SDP (docs/security.md — transfer authorisation is the
+ * pairing PIN, and the server independently refuses non-private remotes).
+ *
+ * Anything not matching all of that falls through to Chromium's normal
+ * verification, so ordinary web traffic is unaffected.
+ */
+function installCertificateVerifier() {
+  let caPublicKey = null;
+  try {
+    caPublicKey = new X509Certificate(fs.readFileSync(rootCaPath)).publicKey;
+  } catch (err) {
+    console.error(`[anydrop-desktop] no root CA at ${rootCaPath} — falling back to OS trust store:`, err.message);
+    return;
+  }
+
+  const { isPrivateOrLoopbackIPv4 } = require(coordinatorBundlePath);
+  const isLanHost = (hostname) =>
+    hostname === "localhost" || hostname === "anydrop.local" || hostname === "::1" || isPrivateOrLoopbackIPv4(hostname);
+
+  session.defaultSession.setCertificateVerifyProc((request, callback) => {
+    // 0 = trust, -3 = defer to Chromium's own result.
+    if (!isLanHost(request.hostname)) return callback(-3);
+    try {
+      const leaf = new X509Certificate(request.certificate.data);
+      const now = Date.now();
+      const signedByOurCa = leaf.verify(caPublicKey);
+      const inValidityWindow = new Date(leaf.validFrom).getTime() <= now && now <= new Date(leaf.validTo).getTime();
+      if (signedByOurCa && inValidityWindow) {
+        console.log(`[anydrop-desktop] trusted ${request.hostname} via Anydrop CA`);
+        return callback(0);
+      }
+      console.warn(
+        `[anydrop-desktop] ${request.hostname} not trusted via Anydrop CA ` +
+          `(signed=${signedByOurCa}, valid=${inValidityWindow}) — deferring to OS trust store`,
+      );
+    } catch (err) {
+      console.error("[anydrop-desktop] certificate verification errored:", err.message);
+    }
+    return callback(-3);
+  });
 }
 
 function sendUpdateStatus(status) {
@@ -183,6 +250,11 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // Must run before the window opens its WebSocket to a coordinator —
+  // this is what lets a laptop trust another laptop's coordinator without
+  // anyone having installed our CA into that machine's OS trust store.
+  installCertificateVerifier();
+
   try {
     const tls = {
       cert: fs.readFileSync(path.join(certsDir, "cert.pem")),

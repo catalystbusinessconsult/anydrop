@@ -63,36 +63,43 @@ to the general `*.pem` gitignore rule) — this is a private office-LAN
 tool, not internet-facing, and sharing one identity across every laptop
 and the CI build means nobody has to generate or copy certs by hand.
 
-That alone only covers *serving* the identity, though — connecting to it
-without a browser/OS security warning also requires *trusting* it, which
-is a separate, per-machine step (installing a cert doesn't install trust
-in it). Every laptop running the app — not just the one that generated
-these files — needs the CA that signed them added to its OS trust store
-once:
+### How laptops trust it (no per-machine setup)
 
-```powershell
-# from an elevated PowerShell, once per laptop
-certutil -addstore -f "ROOT" web\public\anydrop-root-ca.pem
-```
+Serving that identity is only half of it — the other end has to *trust*
+it. The app does that itself, in `installCertificateVerifier`
+(`electron/main.cjs`): for private/loopback hosts only, it verifies the
+presented certificate was genuinely signed by
+`web/public/anydrop-root-ca.pem` (a real signature check against the CA's
+public key via `node:crypto`'s `X509Certificate`, plus a validity-window
+check) and trusts it on that basis. Anything else defers to Chromium's
+normal verification, so ordinary web traffic is untouched.
 
-(`web/public/anydrop-root-ca.pem` is the same CA file phones download and
-install when pairing — see the root README's phone-pairing notes.)
+Two things fall out of that, and both were real recurring failures before:
 
-**Any laptop whose LAN IP isn't in the cert's SAN list will fail TLS
-validation as soon as it tries to become the coordinator** — connections
-use the real discovered IP (`election.ts`'s `coordinatorHost()`), not the
-`anydrop.local` hostname, so that SAN entry doesn't actually cover a
-DHCP-assigned address it wasn't issued for. This has already bitten us
-once this session (see the root README's verification notes) and isn't
-fully solved yet — the durable fix is either a DHCP reservation per
-laptop (so addresses stop drifting) or moving to per-machine dynamic
-cert generation at first run. For now, regenerate and recommit whenever
-a laptop's actual address isn't already listed:
+- **No `certutil` step per laptop.** Trust used to depend on each machine
+  having our CA in its Windows store, which realistically only ever
+  happened on the machine that ran `mkcert -install`. Every other laptop
+  showed a permanent "Offline" that looked exactly like a network fault.
+- **The cert's SAN list no longer has to cover every laptop.** Hostname
+  matching is deliberately not part of the check, so a coordinator on a
+  fresh DHCP address works without reissuing anything. Chasing new IPs
+  into the SAN list was a losing game — the client connects to whichever
+  laptop won the election, so *any* new machine could break it.
+
+The SAN list still matters for **phones**, which use a real browser doing
+real hostname validation and can't be taught our verification logic — so
+keep the coordinator laptops' addresses listed, and expect phones to
+install the CA once (see "Phone pairing" below):
 
 ```bash
-mkcert -install
-mkcert -cert-file web/certs/cert.pem -key-file web/certs/key.pem <every-laptop-LAN-IP...> anydrop.local localhost 127.0.0.1 ::1
+mkcert -install   # only needed on a machine that generates certs
+mkcert -cert-file web/certs/cert.pem -key-file web/certs/key.pem <laptop-LAN-IPs...> anydrop.local localhost 127.0.0.1 ::1
 ```
+
+`web/public/anydrop-root-ca.pem` is committed too (same blanket `*.pem`
+ignore rule caught it for several releases, so CI-built installers
+shipped without it and only local builds worked — worth remembering if
+trust ever silently regresses).
 
 ## Phone pairing (QR code)
 
@@ -106,9 +113,10 @@ something real to load — the desktop window itself never talks to it.
 `@anydrop/coordinator`) to the page as `?qrOrigin=`, which
 `QrPairingPanel.tsx` prefers over `window.location` when present.
 
-Regenerate `web/certs/` (see "Local HTTPS" above) whenever the LAN IP
-changes — both this phone server and the coordinator's TLS listener are
-bound to whatever address the cert was issued for.
+Phones are the one case still bound to the cert's SAN list and to
+installing the CA by hand — a phone browser does its own hostname
+validation and can't use `installCertificateVerifier`. Laptop-to-laptop
+connections have no such constraint.
 
 ## App icon
 
