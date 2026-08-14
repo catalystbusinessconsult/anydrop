@@ -40,6 +40,10 @@ jobs:
         run: npm pkg set version=0.1.${{ github.run_number }} -w desktop
 
       - name: Build and publish installer
-        run: npm run dist -- --publish always -w desktop
+        # -w must come before -- : anything after -- is passed through
+        # literally to the "dist" script rather than parsed by npm itself,
+        # so -w after -- silently runs from the repo root instead (which
+        # has no "dist" script at all) — this failed the first two runs.
+        run: npm run dist -w desktop -- --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
