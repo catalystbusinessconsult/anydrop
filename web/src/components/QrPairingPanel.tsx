@@ -8,18 +8,26 @@ import { buildQrTargetUrl } from "../lib/discovery";
  * anydrop.local by hand. Normally only meaningful when this page itself
  * was loaded via a LAN-reachable address (a phone can't resolve
  * "localhost"), except in the Electron desktop app: that page always
- * loads over file:// (window.location.hostname is empty there), so main.cjs
- * passes the real LAN origin explicitly via ?qrOrigin= instead — it runs
- * its own phone-facing HTTPS static server the desktop window itself
- * doesn't use (see startPhoneServer in desktop/electron/main.cjs).
+ * loads over file:// (window.location.hostname is empty there), so
+ * main.cjs passes two things explicitly instead — it runs its own
+ * phone-facing HTTPS static server the desktop window itself doesn't use
+ * (see startPhoneServer in desktop/electron/main.cjs):
+ *   ?qrOrigin — where the phone fetches the UI from (always *this*
+ *     laptop's own address, since that's the server actually running).
+ *   ?qrHost — the coordinator's real address to embed as `?host=` in the
+ *     QR link, which is NOT always the same laptop: if this instance
+ *     joined another laptop's coordinator as a client, the phone still
+ *     needs to be pointed at that other laptop, not this one.
  */
 export function QrPairingPanel() {
   const [open, setOpen] = useState(false);
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
-  const qrOrigin = new URLSearchParams(window.location.search).get("qrOrigin");
-  const hostname = qrOrigin ? new URL(qrOrigin).hostname : window.location.hostname;
+  const params = new URLSearchParams(window.location.search);
+  const qrOrigin = params.get("qrOrigin");
+  const qrHost = params.get("qrHost");
+  const hostname = qrOrigin ? (qrHost ?? new URL(qrOrigin).hostname) : window.location.hostname;
   const isLanReachable = qrOrigin != null || (hostname !== "localhost" && hostname !== "127.0.0.1");
 
   useEffect(() => {

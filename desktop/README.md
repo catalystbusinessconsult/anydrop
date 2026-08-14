@@ -42,15 +42,43 @@ the same machine.
 The coordinator only speaks `wss://` now (TLS-only), since phones need it
 and running two coordinators — one plain, one TLS — would split the peer
 list. `main.cjs` reads the same cert pair the web dev server uses, from
-`web/certs/cert.pem` / `key.pem`. Generate those once with:
+`web/certs/cert.pem` / `key.pem`.
+
+**These two files are committed to the repo** (an intentional exception
+to the general `*.pem` gitignore rule) — this is a private office-LAN
+tool, not internet-facing, and sharing one identity across every laptop
+and the CI build means nobody has to generate or copy certs by hand.
+
+That alone only covers *serving* the identity, though — connecting to it
+without a browser/OS security warning also requires *trusting* it, which
+is a separate, per-machine step (installing a cert doesn't install trust
+in it). Every laptop running the app — not just the one that generated
+these files — needs the CA that signed them added to its OS trust store
+once:
+
+```powershell
+# from an elevated PowerShell, once per laptop
+certutil -addstore -f "ROOT" web\public\anydrop-root-ca.pem
+```
+
+(`web/public/anydrop-root-ca.pem` is the same CA file phones download and
+install when pairing — see the root README's phone-pairing notes.)
+
+**Any laptop whose LAN IP isn't in the cert's SAN list will fail TLS
+validation as soon as it tries to become the coordinator** — connections
+use the real discovered IP (`election.ts`'s `coordinatorHost()`), not the
+`anydrop.local` hostname, so that SAN entry doesn't actually cover a
+DHCP-assigned address it wasn't issued for. This has already bitten us
+once this session (see the root README's verification notes) and isn't
+fully solved yet — the durable fix is either a DHCP reservation per
+laptop (so addresses stop drifting) or moving to per-machine dynamic
+cert generation at first run. For now, regenerate and recommit whenever
+a laptop's actual address isn't already listed:
 
 ```bash
 mkcert -install
-mkcert -cert-file web/certs/cert.pem -key-file web/certs/key.pem <your-LAN-IP> anydrop.local localhost 127.0.0.1 ::1
+mkcert -cert-file web/certs/cert.pem -key-file web/certs/key.pem <every-laptop-LAN-IP...> anydrop.local localhost 127.0.0.1 ::1
 ```
-
-Regenerate whenever the LAN IP changes (DHCP renewal) — the cert only
-covers the addresses it was issued for.
 
 ## Phone pairing (QR code)
 

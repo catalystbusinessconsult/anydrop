@@ -13,10 +13,14 @@ desktop/release/
 # not part of the shipped repo
 .tools/
 
-# certs
+# certs — except the shared office-LAN cert/key, which IS committed
+# intentionally so every laptop and the CI build trust the same identity
+# without per-machine setup (see desktop/README.md "Local HTTPS")
 *.pem
 *.crt
 *.key
+!web/certs/cert.pem
+!web/certs/key.pem
 
 # test output
 coverage/

@@ -9,6 +9,15 @@ export interface ElectionHandle {
   role(): CoordinatorRole;
   currentEpoch(): number;
   serverHandle(): CoordinatorServerHandle | null;
+  /**
+   * The host a same-machine UI should open its WebSocket to: "localhost"
+   * when this instance won the election, or the discovered coordinator's
+   * advertised host when it didn't — a client instance runs no server of
+   * its own, so pointing its UI at "localhost" would just connect to
+   * nothing. Null only in the brief/rare window before the initial probe
+   * has resolved either way.
+   */
+  coordinatorHost(): string | null;
   stop(): Promise<void>;
 }
 
@@ -107,6 +116,7 @@ export async function runElection(opts: ElectionOptions = {}): Promise<ElectionH
     role: () => role,
     currentEpoch: () => epoch,
     serverHandle: () => server,
+    coordinatorHost: () => (role === "coordinator" ? "localhost" : (tracked?.host ?? null)),
     async stop() {
       browser.stop();
       bonjour.unpublishAll(() => bonjour.destroy());

@@ -24,7 +24,8 @@ const PHONE_SERVER_PORT = 5173;
 let coordinatorHandle = null;
 let phoneServer = null;
 let win = null;
-let lanOrigin = null; // e.g. "https://192.168.100.11:5173" — what a phone's QR code should point at
+let lanOrigin = null; // e.g. "https://192.168.100.11:5173" — where a phone's QR code fetches the UI from (always *this* laptop)
+let qrCoordinatorHost = null; // the coordinator's real address for the QR to embed — this laptop's own IP if it won the election, otherwise whichever laptop actually did
 
 async function startCoordinator(tls) {
   // The coordinator package is ESM ("type": "module" in its package.json);
@@ -104,14 +105,17 @@ function createWindow() {
     console.error(`[renderer] failed to load: ${description} (${code})`);
   });
 
-  // ?host=localhost points the app at the coordinator this same process
-  // just started, exactly like the QR-code flow points a phone at a LAN
-  // IP (see web/src/lib/discovery.ts) — same query-param mechanism, just a
-  // fixed value here since desktop and coordinator are always the same box.
-  // ?qrOrigin tells QrPairingPanel what to encode in the QR code, since
-  // window.location is meaningless for that purpose under file://.
-  const query = { host: "localhost" };
+  // ?host points this window at the actual coordinator — "localhost" if
+  // this instance won the election, or the discovered coordinator's real
+  // address if it joined an existing one on another laptop as a client
+  // (see coordinatorHost() in coordinator/src/election.ts; a client runs
+  // no server of its own, so "localhost" would just connect to nothing).
+  // ?qrOrigin/?qrHost tell QrPairingPanel what to encode in the QR code —
+  // window.location is meaningless for that under file://, and the QR
+  // must always point at a real LAN address, never "localhost".
+  const query = { host: coordinatorHandle?.coordinatorHost() ?? "localhost" };
   if (lanOrigin) query.qrOrigin = lanOrigin;
+  if (qrCoordinatorHost) query.qrHost = qrCoordinatorHost;
   win.loadFile(webIndexHtml, { query });
 }
 
@@ -130,8 +134,15 @@ app.whenReady().then(async () => {
 
     const { listLanAddresses } = await import(pathToFileURL(coordinatorDistIndex).href);
     const [lanIp] = listLanAddresses();
-    if (lanIp) lanOrigin = `https://${lanIp}:${PHONE_SERVER_PORT}`;
-    else console.warn("[anydrop-desktop] no LAN address found — phone pairing QR code will be unavailable");
+    if (lanIp) {
+      lanOrigin = `https://${lanIp}:${PHONE_SERVER_PORT}`;
+      // Own IP if this instance is the coordinator; otherwise
+      // coordinatorHost() already holds the *other* laptop's real address
+      // (never "localhost" in the client branch — see election.ts).
+      qrCoordinatorHost = coordinatorHandle.role() === "coordinator" ? lanIp : coordinatorHandle.coordinatorHost();
+    } else {
+      console.warn("[anydrop-desktop] no LAN address found — phone pairing QR code will be unavailable");
+    }
   } catch (err) {
     console.error("[anydrop-desktop] startup failed:", err);
   }
