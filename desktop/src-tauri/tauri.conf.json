@@ -1,0 +1,45 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CBC LAN Share",
+  "version": "0.1.0",
+  "identifier": "africa.cbc.lanshare",
+  "build": {
+    "beforeDevCommand": "npm run dev -w web",
+    "beforeBuildCommand": "npm run build -w web",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../../web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "CBC LAN Share",
+        "width": 900,
+        "height": 700,
+        "minWidth": 480,
+        "minHeight": 560,
+        "dragDropEnabled": true,
+        "visible": true
+      }
+    ],
+    "trayIcon": {
+      "iconPath": "icons/tray.png",
+      "iconAsTemplate": true,
+      "tooltip": "CBC LAN Share"
+    },
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "externalBin": ["binaries/cbc-coordinator"],
+    "resources": []
+  },
+  "plugins": {
+    "autostart": {
+      "macosLauncher": "LaunchAgent"
+    }
+  }
+}

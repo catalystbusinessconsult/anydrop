@@ -1,0 +1,22 @@
+{
+  "name": "cbc-lan-share",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "coordinator",
+    "transfer-engine",
+    "web",
+    "desktop"
+  ],
+  "scripts": {
+    "dev:coordinator": "npm run dev -w coordinator",
+    "dev:web": "npm run dev -w web",
+    "build": "npm run build -w transfer-engine && npm run build -w coordinator && npm run build -w web",
+    "test": "npm run test -w transfer-engine && npm run test -w coordinator",
+    "lint": "npm run lint -w transfer-engine && npm run lint -w coordinator && npm run lint -w web"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2"
+  }
+}
