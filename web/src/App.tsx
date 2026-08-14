@@ -53,6 +53,26 @@ export default function App() {
     };
   }, [client]);
 
+  // The desktop app's own window is only ever pointed at a coordinator
+  // once, via the ?host= it was loaded with — a client that started with
+  // no coordinator in sight (see onHostChange in election.ts) has no other
+  // way to notice one appearing later, since CoordinatorClient only
+  // retries the URL it was already given. Rewriting ?host= itself (rather
+  // than just localStorage) matters: resolveCoordinatorUrl checks ?host=
+  // before the remembered manual host, so a stale query param would keep
+  // winning over a reload otherwise.
+  useEffect(() => {
+    if (!window.anydropDesktop) return;
+    const currentHost = new URLSearchParams(window.location.search).get("host");
+    return window.anydropDesktop.onCoordinatorHostChanged((host) => {
+      if (host && host !== currentHost) {
+        const url = new URL(window.location.href);
+        url.searchParams.set("host", host);
+        window.location.href = url.toString();
+      }
+    });
+  }, []);
+
   function upsertTransfer(record: TransferRecord) {
     setTransfers((prev) => {
       const idx = prev.findIndex((t) => t.fileId === record.fileId);

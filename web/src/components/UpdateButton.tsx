@@ -13,6 +13,7 @@ interface AnydropDesktopBridge {
   checkForUpdates: () => Promise<void>;
   restartToUpdate: () => Promise<void>;
   onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
+  onCoordinatorHostChanged: (callback: (host: string | null) => void) => () => void;
 }
 
 declare global {

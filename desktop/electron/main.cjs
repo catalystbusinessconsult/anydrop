@@ -31,7 +31,21 @@ let qrCoordinatorHost = null; // the coordinator's real address for the QR to em
 
 async function startCoordinator(tls) {
   const { runElection } = require(coordinatorBundlePath);
-  coordinatorHandle = await runElection({ tls, logger: console });
+  coordinatorHandle = await runElection({
+    tls,
+    logger: console,
+    // A client that finds no coordinator at startup (neither the initial
+    // probe nor its own failed bind-and-recheck) ends up with
+    // coordinatorHost() === null, and the window it's already showing
+    // stays pointed at whatever createWindow() picked at that one moment
+    // — this is what lets it notice a coordinator appearing *later* (the
+    // ongoing mDNS watch keeps running regardless) and reconnect, instead
+    // of sitting offline until the app happens to be restarted.
+    onHostChange: (host) => {
+      console.log(`[anydrop-desktop] coordinator host changed: ${host ?? "(none)"}`);
+      win?.webContents.send("coordinator-host-changed", host);
+    },
+  });
   console.log(`[anydrop-desktop] coordinator role=${coordinatorHandle.role()} epoch=${coordinatorHandle.currentEpoch()}`);
 }
 

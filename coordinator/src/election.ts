@@ -1,6 +1,6 @@
 import { Bonjour } from "bonjour-service";
 import { BIND_RETRY_MS, COORDINATOR_PORT, ELECTION_PROBE_MS, FAILOVER_DELAY_MAX_MS, FAILOVER_DELAY_MIN_MS, MDNS_SERVICE_TYPE } from "./constants.js";
-import { advertiseCoordinator, probeForCoordinator, type DiscoveredCoordinator } from "./mdns.js";
+import { advertiseCoordinator, probeForCoordinator, resolveServiceHost, type DiscoveredCoordinator } from "./mdns.js";
 import { startCoordinatorServer, type CoordinatorServerHandle } from "./server.js";
 
 export type CoordinatorRole = "coordinator" | "client";
@@ -25,6 +25,16 @@ export interface ElectionOptions {
   port?: number;
   logger?: Pick<Console, "info" | "warn" | "error">;
   tls?: { cert: Buffer; key: Buffer };
+  /**
+   * Called whenever coordinatorHost()'s answer changes — including from
+   * null to a real value once a client that started with no coordinator
+   * in sight (probe found nothing, this instance also failed to bind)
+   * later discovers one via the ongoing mDNS watch. A UI that only reads
+   * coordinatorHost() once, at its own startup, would otherwise stay
+   * pointed at nothing forever in that case — this is what lets one
+   * notice and reconnect.
+   */
+  onHostChange?: (host: string | null) => void;
 }
 
 function jitter(min: number, max: number): number {
@@ -46,6 +56,18 @@ export async function runElection(opts: ElectionOptions = {}): Promise<ElectionH
   let server: CoordinatorServerHandle | null = null;
   let tracked: DiscoveredCoordinator | null = null;
   let attemptingFailover = false;
+
+  function coordinatorHost(): string | null {
+    return role === "coordinator" ? "localhost" : (tracked?.host ?? null);
+  }
+
+  let lastNotifiedHost = coordinatorHost();
+  function notifyIfHostChanged(): void {
+    const host = coordinatorHost();
+    if (host === lastNotifiedHost) return;
+    lastNotifiedHost = host;
+    opts.onHostChange?.(host);
+  }
 
   async function tryBecomeCoordinator(nextEpoch: number): Promise<boolean> {
     try {
@@ -79,13 +101,15 @@ export async function runElection(opts: ElectionOptions = {}): Promise<ElectionH
       }
     }
   }
+  lastNotifiedHost = coordinatorHost();
 
   // --- continuous watch for the tracked coordinator disappearing ---
   const browser = bonjour.find({ type: MDNS_SERVICE_TYPE });
   browser.on("up", (service) => {
     if (role === "coordinator") return;
-    tracked = { host: service.host ?? "anydrop.local", port: service.port, epoch: Number(service.txt?.epoch ?? epoch) };
+    tracked = { host: resolveServiceHost(service), port: service.port, epoch: Number(service.txt?.epoch ?? epoch) };
     epoch = tracked.epoch;
+    notifyIfHostChanged();
   });
   browser.on("down", (service) => {
     if (role === "coordinator" || attemptingFailover) return;
@@ -107,6 +131,7 @@ export async function runElection(opts: ElectionOptions = {}): Promise<ElectionH
           epoch = recheck.epoch;
         }
       }
+      notifyIfHostChanged();
     } finally {
       attemptingFailover = false;
     }
@@ -116,7 +141,7 @@ export async function runElection(opts: ElectionOptions = {}): Promise<ElectionH
     role: () => role,
     currentEpoch: () => epoch,
     serverHandle: () => server,
-    coordinatorHost: () => (role === "coordinator" ? "localhost" : (tracked?.host ?? null)),
+    coordinatorHost,
     async stop() {
       browser.stop();
       bonjour.unpublishAll(() => bonjour.destroy());
