@@ -6,10 +6,11 @@
   "version": "0.1.0",
   "main": "electron/main.bundle.cjs",
   "scripts": {
-    "start": "npm run bundle:main && electron .",
+    "start": "npm run bundle:main && npm run bundle:coordinator && electron .",
     "bundle:main": "esbuild electron/main.cjs --bundle --platform=node --format=cjs --external:electron --outfile=electron/main.bundle.cjs",
+    "bundle:coordinator": "esbuild ../coordinator/dist/index.js --bundle --platform=node --format=cjs --outfile=electron/coordinator.bundle.cjs",
     "prepare-assets": "npm run build --prefix ../coordinator && npm run build --prefix ../web",
-    "dist": "npm run prepare-assets && npm run bundle:main && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win"
+    "dist": "npm run prepare-assets && npm run bundle:main && npm run bundle:coordinator && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",
@@ -23,6 +24,7 @@
     "productName": "Anydrop",
     "electronVersion": "33.4.11",
     "npmRebuild": false,
+    "asar": false,
     "directories": {
       "output": "release"
     },
@@ -31,14 +33,6 @@
       "!electron/**/*.map"
     ],
     "extraResources": [
-      {
-        "from": "../coordinator/dist",
-        "to": "coordinator"
-      },
-      {
-        "from": "../coordinator/package.json",
-        "to": "coordinator/package.json"
-      },
       {
         "from": "../web/dist",
         "to": "web"

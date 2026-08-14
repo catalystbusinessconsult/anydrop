@@ -3,17 +3,19 @@ const { autoUpdater } = require("electron-updater");
 const path = require("node:path");
 const fs = require("node:fs");
 const https = require("node:https");
-const { pathToFileURL } = require("node:url");
 
-// In dev, everything lives in the sibling workspace packages' dist/
-// output. In a packaged build, electron-builder copies those same dist/
-// folders into resources/ (see package.json "build.extraResources") since
-// asar-packed app code can't be require()'d as a separate Node package the
-// way workspace resolution expects.
+// In dev, web/certs live in the sibling workspace packages' own dist/
+// output. In a packaged build, electron-builder copies those into
+// resources/ instead (see package.json "build.extraResources") — a
+// packaged app can't reach sibling workspace packages the way dev mode
+// does. The coordinator doesn't need this branch at all: it's bundled
+// (via esbuild, see package.json "bundle:coordinator") into a single
+// dependency-free file that always sits right next to this one, in dev
+// and packaged alike — that bundling is what actually matters here, since
+// the coordinator imports real npm packages (ws, bonjour-service) that
+// simply aren't present anywhere in a packaged app's resources otherwise.
 const resourcesRoot = app.isPackaged ? process.resourcesPath : path.join(__dirname, "..", "..");
-const coordinatorDistIndex = app.isPackaged
-  ? path.join(resourcesRoot, "coordinator", "index.js")
-  : path.join(resourcesRoot, "coordinator", "dist", "index.js");
+const coordinatorBundlePath = path.join(__dirname, "coordinator.bundle.cjs");
 const webDistDir = app.isPackaged ? path.join(resourcesRoot, "web") : path.join(resourcesRoot, "web", "dist");
 const webIndexHtml = path.join(webDistDir, "index.html");
 const certsDir = app.isPackaged ? path.join(resourcesRoot, "certs") : path.join(resourcesRoot, "web", "certs");
@@ -28,11 +30,7 @@ let lanOrigin = null; // e.g. "https://192.168.100.11:5173" — where a phone's 
 let qrCoordinatorHost = null; // the coordinator's real address for the QR to embed — this laptop's own IP if it won the election, otherwise whichever laptop actually did
 
 async function startCoordinator(tls) {
-  // The coordinator package is ESM ("type": "module" in its package.json);
-  // dynamic import() is used here (rather than require) since this file is
-  // CommonJS, and Electron main-process entry files are the one place ESM
-  // support has historically been the least reliable across versions.
-  const { runElection } = await import(pathToFileURL(coordinatorDistIndex).href);
+  const { runElection } = require(coordinatorBundlePath);
   coordinatorHandle = await runElection({ tls, logger: console });
   console.log(`[anydrop-desktop] coordinator role=${coordinatorHandle.role()} epoch=${coordinatorHandle.currentEpoch()}`);
 }
@@ -132,7 +130,7 @@ app.whenReady().then(async () => {
     await startCoordinator(tls);
     phoneServer = await startPhoneServer(tls);
 
-    const { listLanAddresses } = await import(pathToFileURL(coordinatorDistIndex).href);
+    const { listLanAddresses } = require(coordinatorBundlePath);
     const [lanIp] = listLanAddresses();
     if (lanIp) {
       lanOrigin = `https://${lanIp}:${PHONE_SERVER_PORT}`;

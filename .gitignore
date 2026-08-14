@@ -9,6 +9,7 @@ build/
 # Electron packaged output
 desktop/release/
 desktop/electron/main.bundle.cjs
+desktop/electron/coordinator.bundle.cjs
 
 # local one-off scratch tooling (mkcert binary, icon-gen script + deps) —
 # not part of the shipped repo

@@ -13,6 +13,18 @@ sidecar executable — a real decision (bundle Node via `pkg`, or port to Go)
 that was never made. Electron needs neither: it's pure npm, and the
 coordinator runs as plain Node code in the main process.
 
+That said, "runs in the main process" isn't quite "no packaging step" —
+the coordinator imports real npm packages (`ws`, `bonjour-service`), and a
+packaged Electron app's `resources/` folder has no `node_modules` at all
+(this bit us: the first installer built from this project ran fine in
+every test *inside* the monorepo, where Node's module resolution could
+still walk up to the hoisted root `node_modules` — and then failed
+immediately on a machine where the app was actually installed, with no
+such fallback to find). The fix, same as for `main.cjs` itself: esbuild
+bundles both into single dependency-free files (`bundle:main`,
+`bundle:coordinator`) before packaging, so nothing in `electron/` ever
+needs an external `node_modules` to run.
+
 It also sidesteps the HTTPS fight entirely from the app's own point of
 view — pages loaded over `file://` are treated as a secure context by
 Chromium, so `crypto.subtle`/`crypto.randomUUID` (needed for file hashing
@@ -30,12 +42,14 @@ npm run build -w coordinator -w web   # compile both to dist/
 npm start -w desktop                  # launches the Electron window
 ```
 
-`electron/main.cjs` starts the coordinator via `runElection()` (imported
-directly from `coordinator/dist/index.js`) and points the window at
-`web/dist/index.html?host=localhost` — the same `?host=` query-param
-mechanism the QR-pairing flow uses for phones (`web/src/lib/discovery.ts`),
-just fixed to `localhost` since the desktop app and coordinator are always
-the same machine.
+`npm start` bundles `coordinator/dist/index.js` into a standalone
+`electron/coordinator.bundle.cjs` first (esbuild — see "Why Electron over
+Tauri" below for why this step exists at all), then `electron/main.cjs`
+starts it via `require(...).runElection()` and points the window at
+`web/dist/index.html?host=...` — the same `?host=` query-param mechanism
+the QR-pairing flow uses for phones (`web/src/lib/discovery.ts`), pointed
+at whichever address is actually running the coordinator (itself, or
+another laptop — see `coordinatorHost()` in `coordinator/src/election.ts`).
 
 ## Local HTTPS (mkcert)
 
@@ -143,13 +157,31 @@ despite the `permissions: contents: write` already set in the workflow.
 npm run dist -w desktop
 ```
 
-Runs `electron-builder --win` (NSIS installer target). `extraResources`
-copies `coordinator/dist`, `web/dist`, and `web/certs` into the packaged
-app's `resources/` folder, since asar-packed app code can't `require()` a
-sibling workspace package the way dev mode does — `main.cjs` branches on
-`app.isPackaged` to read from the right location either way. This is what
-CI runs too (plus `--publish always`) — running it locally is only for
-testing the installer itself, not for shipping an update.
+Runs `bundle:main` + `bundle:coordinator` (esbuild) then
+`electron-builder --win` (NSIS installer target). `extraResources` copies
+only `web/dist` and `web/certs` into the packaged app's `resources/`
+folder — `main.cjs` and the coordinator don't need this treatment since
+they're the bundled, dependency-free files described above, always
+sitting right next to each other in `electron/` in both dev and packaged
+builds, so no `app.isPackaged` path-branching is needed for either.
+
+A few packaging quirks worth knowing if this ever needs touching again:
+- **`npmRebuild: false`** — electron-builder's dependency-install step
+  doesn't understand npm workspace hoisting and would otherwise try to
+  `npm install` fresh into `desktop/`, repeatedly deleting its own
+  `app-builder-bin` helper mid-build in the process.
+- **`asar: false`** — avoids any ambiguity around dynamic `require()`/
+  `import()` reaching into an asar archive for the bundled files; not
+  needed for a private internal tool anyway.
+- **`signAndEditExecutable`/`verifyUpdateCodeSignature: false`** plus
+  `CSC_IDENTITY_AUTO_DISCOVERY=false` (baked into the `dist` script via
+  `cross-env`) — without these, electron-builder tries to fetch macOS
+  code-signing tools even for an unsigned Windows build, and fails
+  extracting them (needs a Windows privilege — symlink creation — this
+  environment doesn't have).
+
+This is what CI runs too (plus `--publish always`) — running it locally
+is only for testing the installer itself, not for shipping an update.
 
 Not yet done: auto-launch-on-boot / system tray, scoped out of this pass
 to get a working window + embedded coordinator + auto-update landed
