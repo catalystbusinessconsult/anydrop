@@ -1,0 +1,45 @@
+name: Release desktop app
+
+# Builds the Windows installer and publishes it as a GitHub Release on
+# every push to main that touches app code. electron-updater (wired into
+# desktop/electron/main.cjs) polls this repo's Releases and self-updates
+# already-installed copies of the app — this workflow is the other half:
+# what actually makes a new release exist to find.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "coordinator/**"
+      - "transfer-engine/**"
+      - "web/**"
+      - "desktop/**"
+      - ".github/workflows/release-desktop.yml"
+
+permissions:
+  contents: write # electron-builder needs this to create/upload the Release
+
+jobs:
+  build-and-publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+
+      - run: npm run build -w transfer-engine -w coordinator -w web
+
+      # electron-updater compares semver to decide "is there something
+      # newer than what's installed" — the run number guarantees each
+      # release's version is strictly greater than the last without
+      # needing a manual version bump committed back to the repo.
+      - name: Set release version
+        run: npm pkg set version=0.1.${{ github.run_number }} -w desktop
+
+      - name: Build and publish installer
+        run: npm run dist -- --publish always -w desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

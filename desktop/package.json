@@ -2,13 +2,42 @@
   "name": "@anydrop/desktop",
   "private": true,
   "version": "0.1.0",
-  "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
-    "dev": "tauri dev",
-    "build": "tauri build",
-    "tauri": "tauri"
+    "start": "electron .",
+    "prepare-assets": "npm run build -w coordinator && npm run build -w web",
+    "dist": "npm run prepare-assets && electron-builder --win"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.1.0"
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.catalystbusinessconsult.anydrop",
+    "productName": "Anydrop",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "!electron/**/*.map"
+    ],
+    "extraResources": [
+      { "from": "../coordinator/dist", "to": "coordinator" },
+      { "from": "../web/dist", "to": "web" },
+      { "from": "../web/certs", "to": "certs" }
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": "nsis"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "catalystbusinessconsult",
+      "repo": "anydrop"
+    }
   }
 }

@@ -15,6 +15,7 @@ export interface ElectionHandle {
 export interface ElectionOptions {
   port?: number;
   logger?: Pick<Console, "info" | "warn" | "error">;
+  tls?: { cert: Buffer; key: Buffer };
 }
 
 function jitter(min: number, max: number): number {
@@ -39,7 +40,7 @@ export async function runElection(opts: ElectionOptions = {}): Promise<ElectionH
 
   async function tryBecomeCoordinator(nextEpoch: number): Promise<boolean> {
     try {
-      server = await startCoordinatorServer({ port, logger: log });
+      server = await startCoordinatorServer({ port, logger: log, tls: opts.tls });
       epoch = nextEpoch;
       role = "coordinator";
       advertiseCoordinator(bonjour, port, epoch);

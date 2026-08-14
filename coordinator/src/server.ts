@@ -1,4 +1,5 @@
-import { createServer, type Server as HttpServer } from "node:http";
+import { createServer as createHttpServer, type Server as HttpServer } from "node:http";
+import { createServer as createHttpsServer } from "node:https";
 import { WebSocket, WebSocketServer } from "ws";
 import { COORDINATOR_SWEEP_INTERVAL_MS, HEARTBEAT_TIMEOUT_MS, PROTOCOL_VERSION } from "./constants.js";
 import { isAllowedRemoteAddress, listBindAddresses } from "./network.js";
@@ -8,6 +9,11 @@ import { parseClientMessage, type ServerMessage } from "./protocol.js";
 export interface CoordinatorServerOptions {
   port: number;
   logger?: Pick<Console, "info" | "warn" | "error">;
+  // When set, the coordinator speaks wss:// instead of ws:// — needed so a
+  // web app loaded over https:// (required for crypto.subtle/randomUUID on
+  // a LAN address, see web/vite.config.ts) isn't blocked from opening a
+  // plain ws:// connection back to it as mixed content.
+  tls?: { cert: Buffer; key: Buffer };
 }
 
 export interface CoordinatorServerHandle {
@@ -39,7 +45,7 @@ export function startCoordinatorServer(opts: CoordinatorServerOptions): Promise<
     }
 
     for (const address of addresses) {
-      const httpServer = createServer();
+      const httpServer = opts.tls ? createHttpsServer({ cert: opts.tls.cert, key: opts.tls.key }) : createHttpServer();
       const wss = new WebSocketServer({ server: httpServer });
       servers.push(httpServer);
       wsServers.push(wss);

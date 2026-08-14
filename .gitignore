@@ -6,15 +6,17 @@ build/
 .env.local
 .DS_Store
 
-# Tauri
-desktop/src-tauri/target/
-desktop/src-tauri/gen/
+# Electron packaged output
+desktop/release/
+
+# local one-off scratch tooling (mkcert binary, icon-gen script + deps) —
+# not part of the shipped repo
+.tools/
 
 # certs
 *.pem
 *.crt
 *.key
-!desktop/src-tauri/icons/**
 
 # test output
 coverage/

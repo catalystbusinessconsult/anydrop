@@ -32,7 +32,10 @@ export default function App() {
   const [manualHostInput, setManualHostInput] = useState("");
 
   const client = useMemo(
-    () => new CoordinatorClient({ url: resolveCoordinatorUrl(window.location.protocol === "https:"), deviceId, nickname, deviceType }),
+    // file: (the Electron desktop app's page origin) also needs wss:// —
+    // the coordinator runs TLS-only now that phones need it too, so only
+    // plain http: dev mode should ever ask for a plain ws:// connection.
+    () => new CoordinatorClient({ url: resolveCoordinatorUrl(window.location.protocol !== "http:"), deviceId, nickname, deviceType }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );

@@ -1,70 +1,128 @@
-# Anydrop — Windows desktop app (Tauri)
+# Anydrop — Windows desktop app (Electron)
 
-Wraps the `/web` PWA in a native window, bundles the `/coordinator` service
-as a sidecar, and adds a system tray icon, native Explorer drag-and-drop
-(`dragDropEnabled` in `tauri.conf.json`), and auto-launch on boot
-(`tauri-plugin-autostart`).
+Wraps the `/web` PWA in a native window and runs the `/coordinator` service
+directly in the Electron main process — no sidecar binary, no packaging
+step for the coordinator, since Electron's main process already is Node.
 
-## Status: scaffolded, not build-verified
+## Why Electron over Tauri
 
-This environment has no Rust/Cargo toolchain installed, so none of
-`src-tauri/` has been compiled or run. Everything here is structurally
-correct against the documented Tauri v2 APIs (config schema, plugin APIs,
-tray/menu builders) but needs a first real build to shake out the usual
-"docs vs. actual API surface" mismatches. Before relying on it:
+This project originally scaffolded a Tauri wrapper, but Tauri needs a
+Rust + MSVC toolchain (a multi-GB install) before anything compiles, and
+still requires packaging the TypeScript coordinator into a standalone
+sidecar executable — a real decision (bundle Node via `pkg`, or port to Go)
+that was never made. Electron needs neither: it's pure npm, and the
+coordinator runs as plain Node code in the main process.
+
+It also sidesteps the HTTPS fight entirely from the app's own point of
+view — pages loaded over `file://` are treated as a secure context by
+Chromium, so `crypto.subtle`/`crypto.randomUUID` (needed for file hashing
+and device IDs, see root README) work with no cert setup for the desktop
+window itself. TLS is still required on the coordinator's WebSocket server
+because *phones* on the LAN connect to it over `https://`/`wss://` (see
+"Local HTTPS" below) — the desktop app just happens to get that for free
+rather than needing its own separate setup.
+
+## Running in dev
 
 ```bash
-# 1. Install Rust: https://rustup.rs
-# 2. From the repo root:
-npm install
-cargo install tauri-cli --version "^2"
+# from the repo root
+npm run build -w coordinator -w web   # compile both to dist/
+npm start -w desktop                  # launches the Electron window
 ```
 
-## Building the coordinator sidecar
-
-Tauri sidecars must be a single platform-specific executable — the config
-(`tauri.conf.json` → `bundle.externalBin`) expects
-`desktop/src-tauri/binaries/anydrop-coordinator-<target-triple>.exe` to exist
-before `tauri build`/`tauri dev` runs. The coordinator itself is plain
-TypeScript/Node (see `/coordinator`), so it needs a packaging step to become
-that standalone binary — not yet wired up here. Two reasonable options:
-
-1. **Bundle Node + the compiled JS** with a packager like
-   [`@yao-pkg/pkg`](https://github.com/yao-pkg/pkg) (an actively maintained
-   fork of the archived `vercel/pkg`) — keeps the coordinator in TypeScript,
-   adds a `pkg` build step and a larger sidecar binary (~40-80MB, bundled
-   Node runtime).
-2. **Port the coordinator to Go**, per the spec's explicit "Go is an
-   acceptable swap" note — much smaller static binary, no bundled runtime,
-   but means maintaining the signaling logic in two languages if the Node
-   version stays canonical for testing.
-
-Given the project is otherwise all TypeScript, option 1 is the lower-friction
-default — pick it up as the next concrete step here.
+`electron/main.cjs` starts the coordinator via `runElection()` (imported
+directly from `coordinator/dist/index.js`) and points the window at
+`web/dist/index.html?host=localhost` — the same `?host=` query-param
+mechanism the QR-pairing flow uses for phones (`web/src/lib/discovery.ts`),
+just fixed to `localhost` since the desktop app and coordinator are always
+the same machine.
 
 ## Local HTTPS (mkcert)
 
-iOS Safari gates several PWA APIs (and secure-context requirements) behind
-HTTPS. `mkcert` isn't installed in this environment either. Once on a
-machine with it available:
+The coordinator only speaks `wss://` now (TLS-only), since phones need it
+and running two coordinators — one plain, one TLS — would split the peer
+list. `main.cjs` reads the same cert pair the web dev server uses, from
+`web/certs/cert.pem` / `key.pem`. Generate those once with:
 
 ```bash
 mkcert -install
-mkcert anydrop.local localhost 127.0.0.1
+mkcert -cert-file web/certs/cert.pem -key-file web/certs/key.pem <your-LAN-IP> anydrop.local localhost 127.0.0.1 ::1
 ```
 
-Point Vite's dev server config (`web/vite.config.ts`) at the resulting
-`anydrop.local.pem` / `anydrop.local-key.pem` — left as plain HTTP for now
-since it's simpler to iterate on before the Tauri/sidecar build is real.
+Regenerate whenever the LAN IP changes (DHCP renewal) — the cert only
+covers the addresses it was issued for.
 
-## Tauri fs writer
+## Phone pairing (QR code)
 
-`transfer-engine`'s `TauriFsWriter` (in
-`transfer-engine/src/diskWriters/tauriFsWriter.ts`) is written against the
-`@tauri-apps/plugin-fs` v2 API surface via an injected `openFile` function,
-so it doesn't hard-depend on the plugin package at the transfer-engine
-level. Wiring it up here means adding `@tauri-apps/plugin-fs` to
-`web`'s dependencies (only reachable when running inside the Tauri webview,
-where `window.__TAURI__` is defined) and passing its `open()` through to
-`TauriFsWriter`'s constructor — not yet done, since it can't be exercised
-without a real Tauri build to test against.
+The desktop window loads over `file://`, where `window.location.hostname`
+is empty — so `QrPairingPanel` can't infer a LAN address to encode the way
+it does for a phone-visited browser tab. `main.cjs` runs a *second* HTTPS
+server (`startPhoneServer`, port 5173, same certs as the coordinator) that
+serves the same built `web/dist` bundle on the LAN, purely so a phone has
+something real to load — the desktop window itself never talks to it.
+`createWindow()` passes the LAN IP (`listLanAddresses()`, reused from
+`@anydrop/coordinator`) to the page as `?qrOrigin=`, which
+`QrPairingPanel.tsx` prefers over `window.location` when present.
+
+Regenerate `web/certs/` (see "Local HTTPS" above) whenever the LAN IP
+changes — both this phone server and the coordinator's TLS listener are
+bound to whatever address the cert was issued for.
+
+## App icon
+
+`desktop/assets/icon.ico` / `icon.png` are generated from
+`web/public/icon.svg` — regenerate after changing the logo with:
+
+```bash
+cd .tools/icon-gen && npm install && node generate.cjs
+```
+
+(A one-off local script using `sharp` + `png-to-ico`, kept outside the
+main dependency tree since it's only needed when the logo changes, not on
+every build.) `icon.png` sets the window/taskbar icon at runtime
+(`BrowserWindow`'s `icon` option); `icon.ico` is what electron-builder
+embeds in the installer and `.exe` itself (`build.win.icon`).
+
+## Auto-update
+
+Wired via `electron-updater` (`desktop/electron/main.cjs`), pointed at
+this repo's GitHub Releases (`build.publish` in `package.json`). On every
+launch of a *packaged* build, it checks for a newer published release,
+downloads it in the background if found, and installs it on the next
+restart — no prompt, no button.
+
+`.github/workflows/release-desktop.yml` is the other half: it builds the
+Windows installer and publishes it as a GitHub Release automatically on
+every push to `main` that touches app code, using GitHub's own built-in
+`GITHUB_TOKEN` — no personal access token or manual `electron-builder
+--publish` needed. The release version is `0.1.<CI run number>`, so each
+one is guaranteed newer than the last without a version bump commit.
+
+**What this means in practice:** each laptop needs the installer run
+*once* manually (download the `.exe` from the repo's Releases page, run
+it) — after that, every push to `main` reaches it automatically within
+one restart, with no further action on any laptop.
+
+One thing to check if the first CI publish fails with a permissions
+error: repo **Settings → Actions → General → Workflow permissions** needs
+"Read and write permissions" enabled — some orgs default this to
+read-only, which would block the release step from creating anything
+despite the `permissions: contents: write` already set in the workflow.
+
+## Packaging a real .exe locally
+
+```bash
+npm run dist -w desktop
+```
+
+Runs `electron-builder --win` (NSIS installer target). `extraResources`
+copies `coordinator/dist`, `web/dist`, and `web/certs` into the packaged
+app's `resources/` folder, since asar-packed app code can't `require()` a
+sibling workspace package the way dev mode does — `main.cjs` branches on
+`app.isPackaged` to read from the right location either way. This is what
+CI runs too (plus `--publish always`) — running it locally is only for
+testing the installer itself, not for shipping an update.
+
+Not yet done: auto-launch-on-boot / system tray, scoped out of this pass
+to get a working window + embedded coordinator + auto-update landed
+first.

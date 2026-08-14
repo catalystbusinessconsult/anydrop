@@ -22,7 +22,7 @@ verification status (not yet run — see "What's verified" below).
 /coordinator        # standalone signaling + mDNS service (Node), testable headless
 /transfer-engine     # shared TS module: WebRTC connection, chunking, disk writes, resume, hashing
 /web                 # PWA — peer list, send/receive UI, progress
-/desktop             # Tauri wrapper, bundles /coordinator as sidecar + tray + drag-drop
+/desktop             # Electron wrapper — runs /coordinator directly in the main process, no sidecar
 /docs
 ```
 
@@ -94,17 +94,21 @@ Node — see `npm test`):
     receiver's hash verification didn't handle a late-arriving cancellation,
     throwing instead of resolving cleanly.
 
-Scaffolded but **not** build/run-verified here, because this environment has
-neither a Rust toolchain nor `mkcert` installed:
-- `desktop` (Tauri): `tauri.conf.json`, the Rust `src-tauri/` skeleton
-  (system tray, sidecar spawn, auto-launch), and capabilities are written
-  against the documented Tauri v2 API surface but have never been compiled.
-  Needs Rust + a packaged coordinator sidecar binary — see
-  `desktop/README.md` for the concrete next step.
-- Local HTTPS via mkcert (needed for full iOS Safari compatibility).
-- Everything in `docs/testing-matrix.md` — real hardware (iPhone Safari,
-  Android Chrome, the packaged `.exe`) hasn't been touched, only localhost
-  browser tabs.
+- Local HTTPS (mkcert) and the Electron desktop app: both now installed
+  and build/run-verified — see `desktop/README.md`. The coordinator runs
+  TLS-only; the cert covers whatever LAN IP was current when it was
+  generated, so it needs regenerating if DHCP hands out a new one.
+
+Not yet done:
+- Packaging the desktop app into a distributable `.exe` (`npm run dist -w
+  desktop`) hasn't been run — only `npm start -w desktop` (dev mode).
+- An app icon for the desktop window/installer (falls back to Electron's
+  default), system tray, and auto-launch-on-boot — scoped out of the first
+  pass to get a working window + embedded coordinator landed first.
+- Everything in `docs/testing-matrix.md` involving real hardware (iPhone
+  Safari, Android Chrome) beyond what's been manually verified this
+  session — see the conversation history for what's actually been tested
+  live vs. just built.
 
 ## Constants worth knowing
 

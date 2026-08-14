@@ -1,0 +1,163 @@
+const { app, BrowserWindow } = require("electron");
+const { autoUpdater } = require("electron-updater");
+const path = require("node:path");
+const fs = require("node:fs");
+const https = require("node:https");
+const { pathToFileURL } = require("node:url");
+
+// In dev, everything lives in the sibling workspace packages' dist/
+// output. In a packaged build, electron-builder copies those same dist/
+// folders into resources/ (see package.json "build.extraResources") since
+// asar-packed app code can't be require()'d as a separate Node package the
+// way workspace resolution expects.
+const resourcesRoot = app.isPackaged ? process.resourcesPath : path.join(__dirname, "..", "..");
+const coordinatorDistIndex = app.isPackaged
+  ? path.join(resourcesRoot, "coordinator", "index.js")
+  : path.join(resourcesRoot, "coordinator", "dist", "index.js");
+const webDistDir = app.isPackaged ? path.join(resourcesRoot, "web") : path.join(resourcesRoot, "web", "dist");
+const webIndexHtml = path.join(webDistDir, "index.html");
+const certsDir = app.isPackaged ? path.join(resourcesRoot, "certs") : path.join(resourcesRoot, "web", "certs");
+const iconPath = path.join(__dirname, "..", "assets", "icon.png");
+
+const PHONE_SERVER_PORT = 5173;
+
+let coordinatorHandle = null;
+let phoneServer = null;
+let win = null;
+let lanOrigin = null; // e.g. "https://192.168.100.11:5173" — what a phone's QR code should point at
+
+async function startCoordinator(tls) {
+  // The coordinator package is ESM ("type": "module" in its package.json);
+  // dynamic import() is used here (rather than require) since this file is
+  // CommonJS, and Electron main-process entry files are the one place ESM
+  // support has historically been the least reliable across versions.
+  const { runElection } = await import(pathToFileURL(coordinatorDistIndex).href);
+  coordinatorHandle = await runElection({ tls, logger: console });
+  console.log(`[anydrop-desktop] coordinator role=${coordinatorHandle.role()} epoch=${coordinatorHandle.currentEpoch()}`);
+}
+
+const MIME_TYPES = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".webmanifest": "application/manifest+json",
+  ".json": "application/json",
+  ".pem": "application/x-x509-ca-cert",
+  ".ico": "image/x-icon",
+  ".png": "image/png",
+};
+
+// Serves the same built web app the desktop window itself loads (over
+// file://), but over https:// on the LAN — this is what a phone's browser
+// actually connects to. The desktop window doesn't need this server for
+// itself; it exists purely so "Pair a phone" has something real to point
+// a QR code at (see QrPairingPanel.tsx, which now trusts an explicit
+// `?qrOrigin=` param instead of window.location, since that's meaningless
+// under file://).
+function startPhoneServer(tls) {
+  const server = https.createServer({ cert: tls.cert, key: tls.key }, (req, res) => {
+    const urlPath = decodeURIComponent(req.url.split("?")[0]);
+    const relative = urlPath === "/" ? "index.html" : urlPath.replace(/^\/+/, "");
+    const resolved = path.normalize(path.join(webDistDir, relative));
+    if (!resolved.startsWith(webDistDir)) {
+      res.writeHead(403);
+      res.end();
+      return;
+    }
+    fs.readFile(resolved, (err, data) => {
+      if (err) {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
+      res.writeHead(200, { "Content-Type": MIME_TYPES[path.extname(resolved)] ?? "application/octet-stream" });
+      res.end(data);
+    });
+  });
+  return new Promise((resolve, reject) => {
+    server.on("error", reject);
+    server.listen(PHONE_SERVER_PORT, "0.0.0.0", () => resolve(server));
+  });
+}
+
+function createWindow() {
+  win = new BrowserWindow({
+    width: 440,
+    height: 760,
+    title: "Anydrop",
+    icon: iconPath,
+    autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  // Renderer console/errors don't reach the main-process terminal by
+  // default, and a packaged app has no visible DevTools — forward them so
+  // a blank/broken window is diagnosable from logs alone.
+  win.webContents.on("console-message", (_e, level, message, line, sourceId) => {
+    console.log(`[renderer] ${message} (${sourceId}:${line})`);
+  });
+  win.webContents.on("did-fail-load", (_e, code, description) => {
+    console.error(`[renderer] failed to load: ${description} (${code})`);
+  });
+
+  // ?host=localhost points the app at the coordinator this same process
+  // just started, exactly like the QR-code flow points a phone at a LAN
+  // IP (see web/src/lib/discovery.ts) — same query-param mechanism, just a
+  // fixed value here since desktop and coordinator are always the same box.
+  // ?qrOrigin tells QrPairingPanel what to encode in the QR code, since
+  // window.location is meaningless for that purpose under file://.
+  const query = { host: "localhost" };
+  if (lanOrigin) query.qrOrigin = lanOrigin;
+  win.loadFile(webIndexHtml, { query });
+}
+
+app.whenReady().then(async () => {
+  try {
+    const tls = {
+      cert: fs.readFileSync(path.join(certsDir, "cert.pem")),
+      key: fs.readFileSync(path.join(certsDir, "key.pem")),
+    };
+    // Runs TLS-only, same as `ANYDROP_HTTPS=1 npm run dev` in coordinator/
+    // — the desktop window itself needs wss:// since file:// is treated as
+    // a secure context (see App.tsx), and phones on the LAN need TLS
+    // regardless of how the desktop window loads.
+    await startCoordinator(tls);
+    phoneServer = await startPhoneServer(tls);
+
+    const { listLanAddresses } = await import(pathToFileURL(coordinatorDistIndex).href);
+    const [lanIp] = listLanAddresses();
+    if (lanIp) lanOrigin = `https://${lanIp}:${PHONE_SERVER_PORT}`;
+    else console.warn("[anydrop-desktop] no LAN address found — phone pairing QR code will be unavailable");
+  } catch (err) {
+    console.error("[anydrop-desktop] startup failed:", err);
+  }
+  createWindow();
+
+  // Checks GitHub Releases (see build.publish in package.json) for a newer
+  // version, downloads it in the background if found, and installs it the
+  // next time the app quits/relaunches — no button, no prompt. Only makes
+  // sense for a real installed build: electron-updater no-ops in dev (no
+  // install directory to update), and there's nothing published to check
+  // yet until a release actually gets built — see desktop/README.md for
+  // what publishing one requires.
+  if (app.isPackaged) {
+    autoUpdater.logger = console;
+    autoUpdater.on("error", (err) => console.error("[anydrop-desktop] update check failed:", err));
+    autoUpdater.on("update-downloaded", (info) => console.log(`[anydrop-desktop] update ${info.version} downloaded — installs on next restart`));
+    autoUpdater.checkForUpdatesAndNotify().catch((err) => console.error("[anydrop-desktop] update check failed:", err));
+  }
+
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+
+app.on("window-all-closed", async () => {
+  if (coordinatorHandle) await coordinatorHandle.stop();
+  if (phoneServer) await new Promise((resolve) => phoneServer.close(resolve));
+  if (process.platform !== "darwin") app.quit();
+});
