@@ -1,7 +1,7 @@
 import type { DeviceType } from "./coordinatorClient";
 
-const DEVICE_ID_KEY = "cbc-lan-share:deviceId";
-const NICKNAME_KEY = "cbc-lan-share:nickname";
+const DEVICE_ID_KEY = "anydrop:deviceId";
+const NICKNAME_KEY = "anydrop:nickname";
 
 function detectDeviceType(): DeviceType {
   const ua = navigator.userAgent;

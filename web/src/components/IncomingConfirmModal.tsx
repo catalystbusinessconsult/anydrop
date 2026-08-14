@@ -1,4 +1,4 @@
-import type { FileMeta } from "@cbc-lan-share/transfer-engine";
+import type { FileMeta } from "@anydrop/transfer-engine";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

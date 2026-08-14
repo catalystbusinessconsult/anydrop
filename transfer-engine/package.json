@@ -1,5 +1,5 @@
 {
-  "name": "@cbc-lan-share/transfer-engine",
+  "name": "@anydrop/transfer-engine",
   "private": true,
   "version": "0.1.0",
   "type": "module",

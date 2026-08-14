@@ -1,4 +1,4 @@
-import type { SignalPayload, SignalTransport } from "@cbc-lan-share/transfer-engine";
+import type { SignalPayload, SignalTransport } from "@anydrop/transfer-engine";
 
 export type DeviceType = "laptop" | "phone";
 

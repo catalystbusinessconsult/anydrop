@@ -5,7 +5,7 @@ import { VitePWA } from "vite-plugin-pwa";
 // Local HTTPS (mkcert) is required for several PWA/File System APIs on iOS
 // Safari — see root README "Local HTTPS" section for the one-time setup.
 // This config assumes mkcert-issued certs at ./certs/cert.pem + key.pem
-// when CBC_LAN_SHARE_HTTPS=1 is set; plain HTTP otherwise for quick dev.
+// when ANYDROP_HTTPS=1 is set; plain HTTP otherwise for quick dev.
 export default defineConfig({
   plugins: [
     react(),
@@ -16,8 +16,8 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,svg}"],
       },
       manifest: {
-        name: "CBC LAN Share",
-        short_name: "LAN Share",
+        name: "Anydrop",
+        short_name: "Anydrop",
         description: "Peer-to-peer local file transfer for the CBC Africa office LAN",
         theme_color: "#0f172a",
         background_color: "#0f172a",

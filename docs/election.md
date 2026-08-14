@@ -9,8 +9,8 @@ and how the group recovers when the current coordinator disappears.
 
 | Name | Value |
 |---|---|
-| `COORDINATOR_PORT` | `47811` (fixed, so `cbcshare.local:47811` is stable across elections) |
-| `MDNS_SERVICE_TYPE` | `_cbcshare._tcp.local` |
+| `COORDINATOR_PORT` | `47811` (fixed, so `anydrop.local:47811` is stable across elections) |
+| `MDNS_SERVICE_TYPE` | `_anydrop._tcp.local` |
 | `ELECTION_PROBE_MS` | 1500 — how long a freshly-launched laptop browses mDNS before concluding "no coordinator exists" |
 | `FAILOVER_DELAY_MS` | random(0, 2000) — jitter applied before a laptop attempts to become the *new* coordinator after detecting the old one is gone |
 | `BIND_RETRY_MS` | 300 — if two laptops jitter into the same window and both attempt to bind, the loser retries after this delay, by which point the winner's mDNS record is up and the loser's probe (re-run before every bind attempt) will find it |
@@ -33,9 +33,9 @@ and how the group recovers when the current coordinator disappears.
 ```
 
 Phones always run step 2 only, with no fallback to step 4 (they are never
-election-eligible). If a phone's probe finds nothing, it shows a "no CBC
-Share device found on this network yet — open the app on a laptop first"
-state and keeps retrying the probe on a slow interval (10s) in the
+election-eligible). If a phone's probe finds nothing, it shows a "no Anydrop
+device found on this network yet — open the app on a laptop first" state and
+keeps retrying the probe on a slow interval (10s) in the
 background.
 
 ## 3. Detecting coordinator loss

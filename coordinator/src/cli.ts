@@ -3,10 +3,10 @@ import { runElection } from "./election.js";
 
 async function main() {
   const handle = await runElection();
-  console.log(`[cbc-coordinator] role=${handle.role()} epoch=${handle.currentEpoch()}`);
+  console.log(`[anydrop-coordinator] role=${handle.role()} epoch=${handle.currentEpoch()}`);
 
   const shutdown = async () => {
-    console.log("[cbc-coordinator] shutting down…");
+    console.log("[anydrop-coordinator] shutting down…");
     await handle.stop();
     process.exit(0);
   };
@@ -15,6 +15,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("[cbc-coordinator] fatal:", err);
+  console.error("[anydrop-coordinator] fatal:", err);
   process.exit(1);
 });

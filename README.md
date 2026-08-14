@@ -1,6 +1,6 @@
-# CBC LAN Share
+# Anydrop
 
-Peer-to-peer local file transfer for the CBC Africa office network (Abule-Oja,
+Peer-to-peer local file transfer, built for the CBC Africa office network (Abule-Oja,
 Lagos). No dedicated server, no internet dependency — any laptop on the LAN
 can transparently host the coordinator role, and files move directly between
 devices over WebRTC.
@@ -35,7 +35,7 @@ npm run dev:web           # terminal 2 — Vite dev server on :5173
 ```
 
 Open `http://localhost:5173` in two browser tabs (or two devices on the same
-LAN once `cbcshare.local` resolves — see `desktop/README.md` for the mkcert
+LAN once `anydrop.local` resolves — see `desktop/README.md` for the mkcert
 HTTPS setup iOS Safari needs) to see two "devices" discover each other and
 transfer a file over a real `RTCDataChannel`.
 

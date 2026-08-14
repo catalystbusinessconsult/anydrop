@@ -24,8 +24,8 @@ fn main() {
             // as a client if another instance already won the election.
             let shell = app.handle().shell();
             let sidecar = shell
-                .sidecar("cbc-coordinator")
-                .expect("cbc-coordinator sidecar binary not found — build it first, see desktop/README.md");
+                .sidecar("anydrop-coordinator")
+                .expect("anydrop-coordinator sidecar binary not found — build it first, see desktop/README.md");
             let (mut rx, _child) = sidecar.spawn().expect("failed to spawn coordinator sidecar");
             tauri::async_runtime::spawn(async move {
                 use tauri_plugin_shell::process::CommandEvent;
@@ -38,7 +38,7 @@ fn main() {
                 }
             });
 
-            let show = MenuItem::with_id(app, "show", "Open CBC LAN Share", true, None::<&str>)?;
+            let show = MenuItem::with_id(app, "show", "Open Anydrop", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &quit])?;
 
@@ -69,5 +69,5 @@ fn main() {
             }
         })
         .run(tauri::generate_context!())
-        .expect("error while running CBC LAN Share");
+        .expect("error while running Anydrop");
 }

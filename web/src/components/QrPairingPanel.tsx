@@ -5,7 +5,7 @@ import { buildQrTargetUrl } from "../lib/discovery";
 /**
  * Lets a laptop show a QR code a phone can scan to open this app already
  * pointed at the right coordinator — the spec's alternative to typing in
- * cbcshare.local by hand. Only meaningful when this page itself was loaded
+ * anydrop.local by hand. Only meaningful when this page itself was loaded
  * via a LAN-reachable address (a phone can't resolve "localhost").
  */
 export function QrPairingPanel() {
@@ -43,7 +43,7 @@ export function QrPairingPanel() {
           {isLanReachable && error && <p className="qr-pairing__note">Couldn't generate a QR code.</p>}
           {isLanReachable && dataUrl && (
             <>
-              <img className="qr-pairing__image" src={dataUrl} alt="QR code to open CBC LAN Share on a phone" width={180} height={180} />
+              <img className="qr-pairing__image" src={dataUrl} alt="QR code to open Anydrop on a phone" width={180} height={180} />
               <p className="qr-pairing__hint">Scan with a phone on the same wifi.</p>
             </>
           )}

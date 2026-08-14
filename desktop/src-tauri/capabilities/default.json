@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capabilities for the main CBC LAN Share window",
+  "description": "Capabilities for the main Anydrop window",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -13,7 +13,7 @@
     "shell:allow-open",
     {
       "identifier": "shell:allow-execute",
-      "allow": [{ "name": "binaries/cbc-coordinator", "sidecar": true }]
+      "allow": [{ "name": "binaries/anydrop-coordinator", "sidecar": true }]
     },
     "autostart:default"
   ]

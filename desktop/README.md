@@ -1,4 +1,4 @@
-# CBC LAN Share — Windows desktop app (Tauri)
+# Anydrop — Windows desktop app (Tauri)
 
 Wraps the `/web` PWA in a native window, bundles the `/coordinator` service
 as a sidecar, and adds a system tray icon, native Explorer drag-and-drop
@@ -24,7 +24,7 @@ cargo install tauri-cli --version "^2"
 
 Tauri sidecars must be a single platform-specific executable — the config
 (`tauri.conf.json` → `bundle.externalBin`) expects
-`desktop/src-tauri/binaries/cbc-coordinator-<target-triple>.exe` to exist
+`desktop/src-tauri/binaries/anydrop-coordinator-<target-triple>.exe` to exist
 before `tauri build`/`tauri dev` runs. The coordinator itself is plain
 TypeScript/Node (see `/coordinator`), so it needs a packaging step to become
 that standalone binary — not yet wired up here. Two reasonable options:
@@ -50,11 +50,11 @@ machine with it available:
 
 ```bash
 mkcert -install
-mkcert cbcshare.local localhost 127.0.0.1
+mkcert anydrop.local localhost 127.0.0.1
 ```
 
 Point Vite's dev server config (`web/vite.config.ts`) at the resulting
-`cbcshare.local.pem` / `cbcshare.local-key.pem` — left as plain HTTP for now
+`anydrop.local.pem` / `anydrop.local-key.pem` — left as plain HTTP for now
 since it's simpler to iterate on before the Tauri/sidecar build is real.
 
 ## Tauri fs writer

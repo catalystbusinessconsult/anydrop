@@ -24,7 +24,7 @@ export class MemoryResumeStore implements ResumeStore {
   }
 }
 
-const STORAGE_PREFIX = "cbc-lan-share:resume:";
+const STORAGE_PREFIX = "anydrop:resume:";
 
 /** localStorage-backed ResumeStore for the browser/PWA. */
 export class LocalStorageResumeStore implements ResumeStore {

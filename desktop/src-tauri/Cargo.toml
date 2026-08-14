@@ -1,7 +1,7 @@
 [package]
-name = "cbc-lan-share"
+name = "anydrop"
 version = "0.1.0"
-description = "CBC LAN Share desktop app"
+description = "Anydrop desktop app"
 edition = "2021"
 
 [build-dependencies]
@@ -16,5 +16,5 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [[bin]]
-name = "cbc-lan-share"
+name = "anydrop"
 path = "src/main.rs"

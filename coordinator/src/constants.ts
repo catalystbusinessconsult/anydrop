@@ -2,7 +2,7 @@
 export const PROTOCOL_VERSION = 1;
 
 export const COORDINATOR_PORT = 47811;
-export const MDNS_SERVICE_TYPE = "cbcshare"; // bonjour-service adds the _tcp.local suffix
+export const MDNS_SERVICE_TYPE = "anydrop"; // bonjour-service adds the _tcp.local suffix
 
 export const HEARTBEAT_INTERVAL_MS = 5000;
 export const HEARTBEAT_TIMEOUT_MS = 15000;

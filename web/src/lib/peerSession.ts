@@ -19,7 +19,7 @@ import {
   type PairingStore,
   type SignalTransport,
   type TransferEvent,
-} from "@cbc-lan-share/transfer-engine";
+} from "@anydrop/transfer-engine";
 
 const pairingStore: PairingStore = new LocalStoragePairingStore();
 const resumeStore = new LocalStorageResumeStore();

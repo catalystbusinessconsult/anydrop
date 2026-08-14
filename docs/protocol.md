@@ -1,4 +1,4 @@
-# CBC LAN Share — Signaling Protocol v1
+# Anydrop — Signaling Protocol v1
 
 Status: **finalized for v1 implementation**. Every client (web PWA, Tauri
 desktop) implements exactly this contract against the coordinator. The
@@ -8,7 +8,7 @@ payloads — it never touches file bytes.
 ## 1. Transport
 
 - One WebSocket connection per client, opened to whichever coordinator is
-  currently advertised (`ws://cbcshare.local:<port>` or `wss://` once local
+  currently advertised (`ws://anydrop.local:<port>` or `wss://` once local
   HTTPS via mkcert is wired up — see [`security.md`](./security.md)).
 - Messages are UTF-8 JSON, one object per WebSocket frame. No batching, no
   newline-delimited framing.
@@ -114,7 +114,7 @@ Notes:
 
 - Only `deviceType: "laptop"` instances run the coordinator's WebSocket
   server + mDNS advertisement. On launch, a laptop instance browses for an
-  existing `_cbcshare._tcp.local` service for `ELECTION_PROBE_MS` (1500ms);
+  existing `_anydrop._tcp.local` service for `ELECTION_PROBE_MS` (1500ms);
   if one answers, it joins as an ordinary client. If nothing answers, it
   binds the coordinator port and starts advertising.
 - If a laptop's coordinator process disappears (peers stop getting

@@ -1,11 +1,11 @@
 {
-  "name": "@cbc-lan-share/coordinator",
+  "name": "@anydrop/coordinator",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "main": "./src/index.ts",
   "bin": {
-    "cbc-coordinator": "./src/cli.ts"
+    "anydrop-coordinator": "./src/cli.ts"
   },
   "scripts": {
     "dev": "tsx src/cli.ts",

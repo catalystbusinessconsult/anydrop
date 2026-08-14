@@ -1,11 +1,11 @@
 const COORDINATOR_PORT = 47811;
-const MANUAL_HOST_KEY = "cbc-lan-share:manualHost";
+const MANUAL_HOST_KEY = "anydrop:manualHost";
 
 /**
  * Resolves the coordinator's WebSocket URL. Priority order:
  * 1. `?host=` query param (what a QR code shown on a laptop's screen encodes).
  * 2. A manually-entered host, remembered from a previous session.
- * 3. The default `cbcshare.local` mDNS hostname (relies on the OS-level
+ * 3. The default `anydrop.local` mDNS hostname (relies on the OS-level
  *    mDNS resolver — Bonjour on macOS/iOS, built-in on Android/Windows).
  */
 export function resolveCoordinatorUrl(secure: boolean): string {
@@ -14,7 +14,7 @@ export function resolveCoordinatorUrl(secure: boolean): string {
   if (fromQr) {
     localStorage.setItem(MANUAL_HOST_KEY, fromQr);
   }
-  const host = fromQr ?? localStorage.getItem(MANUAL_HOST_KEY) ?? "cbcshare.local";
+  const host = fromQr ?? localStorage.getItem(MANUAL_HOST_KEY) ?? "anydrop.local";
   const protocol = secure ? "wss" : "ws";
   return `${protocol}://${host}:${COORDINATOR_PORT}`;
 }

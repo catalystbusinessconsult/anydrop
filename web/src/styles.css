@@ -119,10 +119,59 @@ body {
 .connection-status--offline {
   color: var(--error);
 }
-.connection-status--connecting .connection-status__dot,
 .connection-status--reconnecting .connection-status__dot {
   background: var(--accent);
   animation: pulse-dot 1s ease-in-out infinite;
+}
+
+/* ---------- loading screen ---------- */
+
+.loading-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-align: center;
+  padding: 24px;
+  animation: fade-in 0.3s ease both;
+}
+
+.loading-screen__mark {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  font-size: 1.6rem;
+  color: #04121f;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 6px 24px color-mix(in srgb, var(--accent) 45%, transparent);
+  animation: pulse-scale 1.6s ease-in-out infinite;
+}
+
+.loading-screen__name {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.loading-screen__spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid var(--border-strong);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+
+.loading-screen__status {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-faint);
 }
 
 /* ---------- panels ---------- */
@@ -547,6 +596,22 @@ button:disabled {
   }
   50% {
     opacity: 0.4;
+  }
+}
+@keyframes pulse-scale {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.85;
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 

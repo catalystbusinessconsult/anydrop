@@ -41,7 +41,7 @@ export class MemoryPairingStore implements PairingStore {
   }
 }
 
-const STORAGE_PREFIX = "cbc-lan-share:trust:";
+const STORAGE_PREFIX = "anydrop:trust:";
 
 /** localStorage-backed PairingStore for the browser/PWA. */
 export class LocalStoragePairingStore implements PairingStore {

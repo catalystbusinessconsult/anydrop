@@ -1,5 +1,5 @@
 {
-  "name": "@cbc-lan-share/web",
+  "name": "@anydrop/web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -10,7 +10,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@cbc-lan-share/transfer-engine": "*",
+    "@anydrop/transfer-engine": "*",
     "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

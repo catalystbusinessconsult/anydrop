@@ -74,7 +74,7 @@ export async function runElection(opts: ElectionOptions = {}): Promise<ElectionH
   const browser = bonjour.find({ type: MDNS_SERVICE_TYPE });
   browser.on("up", (service) => {
     if (role === "coordinator") return;
-    tracked = { host: service.host ?? "cbcshare.local", port: service.port, epoch: Number(service.txt?.epoch ?? epoch) };
+    tracked = { host: service.host ?? "anydrop.local", port: service.port, epoch: Number(service.txt?.epoch ?? epoch) };
     epoch = tracked.epoch;
   });
   browser.on("down", (service) => {

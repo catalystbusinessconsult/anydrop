@@ -12,7 +12,7 @@ export function probeForCoordinator(bonjour: Bonjour, timeoutMs = ELECTION_PROBE
   return new Promise((resolve) => {
     const browser = bonjour.find({ type: MDNS_SERVICE_TYPE }, (service: Service) => {
       const epoch = Number(service.txt?.epoch ?? 0);
-      const host = service.referer?.address ?? service.host ?? "cbcshare.local";
+      const host = service.referer?.address ?? service.host ?? "anydrop.local";
       const port = service.port;
       clearTimeout(timer);
       browser.stop();
@@ -26,16 +26,16 @@ export function probeForCoordinator(bonjour: Bonjour, timeoutMs = ELECTION_PROBE
 }
 
 /**
- * Advertises this instance as the coordinator, bound to `cbcshare.local`.
+ * Advertises this instance as the coordinator, bound to `anydrop.local`.
  * bonjour-service auto-detects and publishes A records for every non-
  * internal network interface address under that host name — no need to
  * pass addresses explicitly.
  */
 export function advertiseCoordinator(bonjour: Bonjour, port: number, epoch: number): Service {
   return bonjour.publish({
-    name: "CBC LAN Share Coordinator",
+    name: "Anydrop Coordinator",
     type: MDNS_SERVICE_TYPE,
-    host: "cbcshare.local",
+    host: "anydrop.local",
     port,
     txt: { epoch: String(epoch) },
   });

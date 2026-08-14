@@ -1,6 +1,6 @@
 import type { DiskWriter, FileMeta } from "../types.js";
 
-const DB_NAME = "cbc-lan-share";
+const DB_NAME = "anydrop";
 const STORE = "chunks";
 
 function openDb(): Promise<IDBDatabase> {

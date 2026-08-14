@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { computeFileId, type FileMeta, type TransferEvent } from "@cbc-lan-share/transfer-engine";
+import { computeFileId, type FileMeta, type TransferEvent } from "@anydrop/transfer-engine";
 import { CoordinatorClient, type ConnectionState, type PeerInfo } from "./lib/coordinatorClient";
 import { resolveCoordinatorUrl, setManualHost } from "./lib/discovery";
 import { getDeviceId, getDeviceType, getNickname, setNickname } from "./lib/identity";
 import { listenForNextIncomingTransfer, sendFileToPeer } from "./lib/peerSession";
 import { PeerList } from "./components/PeerList";
+import { LoadingScreen } from "./components/LoadingScreen";
 import { QrPairingPanel } from "./components/QrPairingPanel";
 import { PinModal, type PinModalState } from "./components/PinModal";
 import { IncomingConfirmModal } from "./components/IncomingConfirmModal";
@@ -160,6 +161,14 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, peers]);
 
+  // Only the very first connection attempt gets the full-screen takeover —
+  // later reconnects keep the normal layout (with its own small status
+  // pill) since by then the user already has a peer list worth not
+  // yanking away from under them.
+  if (connectionState === "connecting") {
+    return <LoadingScreen />;
+  }
+
   return (
     <div className="app">
       <header className="app__header">
@@ -167,12 +176,11 @@ export default function App() {
           <span className="app__logo" aria-hidden>
             ⇄
           </span>
-          <h1>CBC LAN Share</h1>
+          <h1>Anydrop</h1>
         </div>
         <p className={`connection-status connection-status--${connectionState}`}>
           <span className="connection-status__dot" aria-hidden />
           {connectionState === "open" && "Connected"}
-          {connectionState === "connecting" && "Connecting…"}
           {connectionState === "reconnecting" && "Reconnecting…"}
           {connectionState === "offline" && "Offline"}
         </p>
