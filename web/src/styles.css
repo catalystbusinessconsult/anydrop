@@ -287,6 +287,31 @@ h2 {
   margin: 0;
 }
 
+.qr-pairing__setup {
+  margin-top: 6px;
+  max-width: 320px;
+  text-align: center;
+  border-top: 1px dashed var(--border-strong);
+  padding-top: 10px;
+}
+.qr-pairing__setup summary {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.qr-pairing__setup summary:hover {
+  color: var(--accent);
+}
+.qr-pairing__setup .qr-pairing__image {
+  margin: 10px auto 8px;
+  display: block;
+}
+.qr-pairing__setup .qr-pairing__hint {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  line-height: 1.5;
+}
+
 .manual-host-panel p {
   margin: 0 0 12px;
   font-size: 0.9rem;

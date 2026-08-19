@@ -3,6 +3,7 @@ const { autoUpdater } = require("electron-updater");
 const path = require("node:path");
 const fs = require("node:fs");
 const https = require("node:https");
+const http = require("node:http");
 const { X509Certificate } = require("node:crypto");
 
 // In dev, web/certs live in the sibling workspace packages' own dist/
@@ -26,11 +27,21 @@ const iconPath = path.join(__dirname, "..", "assets", "icon.png");
 const rootCaPath = path.join(webDistDir, "anydrop-root-ca.pem");
 
 const PHONE_SERVER_PORT = 5173;
+// Deliberately plain HTTP, and deliberately serving exactly one public
+// file. A phone can't install our CA over the HTTPS port, because trusting
+// that port's certificate is the very thing the CA install is for — the
+// download itself would trip the same "not private" warning, and on the
+// WebSocket port there is no warning to tap through at all. Nothing secret
+// is exposed: this is the CA's public certificate, which every client
+// needs and which is committed to the repo anyway.
+const CA_SERVER_PORT = 5174;
 
 let coordinatorHandle = null;
 let phoneServer = null;
+let caServer = null;
 let win = null;
 let lanOrigin = null; // e.g. "https://192.168.100.11:5173" — where a phone's QR code fetches the UI from (always *this* laptop)
+let caInstallUrl = null; // e.g. "http://192.168.100.11:5174/" — plain-HTTP CA download for first-time phone setup
 let qrCoordinatorHost = null; // the coordinator's real address for the QR to embed — this laptop's own IP if it won the election, otherwise whichever laptop actually did
 
 async function startCoordinator(tls) {
@@ -211,6 +222,29 @@ function startPhoneServer(tls) {
   });
 }
 
+/** Serves only the public CA certificate, over plain HTTP — see CA_SERVER_PORT. */
+function startCaServer() {
+  const server = http.createServer((_req, res) => {
+    fs.readFile(rootCaPath, (err, data) => {
+      if (err) {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
+      res.writeHead(200, {
+        "Content-Type": "application/x-x509-ca-cert",
+        "Content-Disposition": 'attachment; filename="anydrop-root-ca.pem"',
+        "Content-Length": data.length,
+      });
+      res.end(data);
+    });
+  });
+  return new Promise((resolve, reject) => {
+    server.on("error", reject);
+    server.listen(CA_SERVER_PORT, "0.0.0.0", () => resolve(server));
+  });
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 440,
@@ -246,6 +280,10 @@ function createWindow() {
   const query = { host: coordinatorHandle?.coordinatorHost() ?? "localhost" };
   if (lanOrigin) query.qrOrigin = lanOrigin;
   if (qrCoordinatorHost) query.qrHost = qrCoordinatorHost;
+  // Plain-HTTP URL a phone can reach to install our CA, without which it
+  // can load the page only past a warning and can't open the WebSocket at
+  // all (a WebSocket TLS failure has no "proceed anyway" to tap).
+  if (caInstallUrl) query.caUrl = caInstallUrl;
   win.loadFile(webIndexHtml, { query });
 }
 
@@ -266,11 +304,13 @@ app.whenReady().then(async () => {
     // regardless of how the desktop window loads.
     await startCoordinator(tls);
     phoneServer = await startPhoneServer(tls);
+    caServer = await startCaServer();
 
     const { listLanAddresses } = require(coordinatorBundlePath);
     const [lanIp] = listLanAddresses();
     if (lanIp) {
       lanOrigin = `https://${lanIp}:${PHONE_SERVER_PORT}`;
+      caInstallUrl = `http://${lanIp}:${CA_SERVER_PORT}/anydrop-root-ca.pem`;
       // Own IP if this instance is the coordinator; otherwise
       // coordinatorHost() already holds the *other* laptop's real address
       // (never "localhost" in the client branch — see election.ts).
@@ -304,5 +344,6 @@ app.whenReady().then(async () => {
 app.on("window-all-closed", async () => {
   if (coordinatorHandle) await coordinatorHandle.stop();
   if (phoneServer) await new Promise((resolve) => phoneServer.close(resolve));
+  if (caServer) await new Promise((resolve) => caServer.close(resolve));
   if (process.platform !== "darwin") app.quit();
 });
